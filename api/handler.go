@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m-masataka/grafana-simplejson-mongo/mongodb"
+	"github.com/moustik/grafana-simplejson-mongo/mongodb"
 )
 
 type TSQuery struct {

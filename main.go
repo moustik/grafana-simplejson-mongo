@@ -3,13 +3,13 @@ package main
 import (
 	"log"
 
-	"github.com/m-masataka/grafana-simplejson-mongo/api"
+	"github.com/moustik/grafana-simplejson-mongo/api"
 )
 
 func main() {
 	conf := api.Config{
 		Port:      8080,
-		MongoHost: "localhost",
+		MongoHost: "192.168.1.88",
 	}
 	errs := make(chan error, 2)
 	api.StartHTTPServer(conf, errs)

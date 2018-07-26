@@ -19,7 +19,8 @@ func (sp *SessionProvider) GetTimeSeriesData(dbname string, collection string, c
 		return res, err
 	}
 	timecolType := reflect.TypeOf(judge[timecol]).Kind()
-	pipeline := BuildTimeSeriesPipe(col, timecol, matchfield, matchvalue, from, to, intervalMs, timecolType)
+	timestampFlag := (timecolType == reflect.Float64 && judge[timecol].(float64) < 10000000000000)
+	pipeline := BuildTimeSeriesPipe(col, timecol, matchfield, matchvalue, from, to, intervalMs, timecolType, timestampFlag)
 	err = c.Pipe(pipeline).All(&results)
 	if err != nil {
 		return res, err
@@ -29,7 +30,12 @@ func (sp *SessionProvider) GetTimeSeriesData(dbname string, collection string, c
 		var date time.Time
 		switch timecolType {
 		case reflect.Int ,reflect.Float64:
-			date, err =  parseInttoDate(int(v["_id"].(float64)))
+			if v["_id"].(float64) > 10000000000000 { // ain't no unix timestamp
+				// Parse for format YYYYMMDDHHmmSS
+				date, err =  parseInttoDate(int(v["_id"].(float64)))
+			} else {
+				date = time.Unix(int64(v["_id"].(float64)/1000), 0)
+			}
 			if err != nil {
 				return res, err
 			}
@@ -50,15 +56,21 @@ func (sp *SessionProvider) GetTimeSeriesData(dbname string, collection string, c
 }
 
 
-func BuildTimeSeriesPipe(col string, timecol string, matchfield string, matchvalue string, from time.Time, to time.Time, intervalMs int, timecolType reflect.Kind) ([]bson.M) {
+func BuildTimeSeriesPipe(col string, timecol string, matchfield string, matchvalue string, from time.Time, to time.Time, intervalMs int, timecolType reflect.Kind, timestampFlag bool) ([]bson.M) {
 	var trange, fieldMatch bson.M
 	switch timecolType {
 	case reflect.String:
 		trange = bson.M{ timecol: bson.M{"$gte": from.Format("20060102150405"), "$lte": to.Format("20060102150405")}}
 	case reflect.Int ,reflect.Float64:
-		intFrom, _ := strconv.Atoi(from.Format("20060102150405"))
-		intTo, _ := strconv.Atoi(to.Format("20060102150405"))
-		trange = bson.M{ timecol: bson.M{"$gte": intFrom, "$lte": intTo}}
+		if timestampFlag {
+			intFrom := from.UnixNano()/ int64(time.Millisecond)
+			intTo := to.UnixNano() / int64(time.Millisecond)
+			trange = bson.M{ timecol: bson.M{"$gte": intFrom , "$lte": intTo}}
+		} else {
+			intFrom, _ := strconv.Atoi(from.Format("20060102150405"))
+			intTo, _ := strconv.Atoi(to.Format("20060102150405"))
+			trange = bson.M{ timecol: bson.M{"$gte": intFrom , "$lte": intTo}}
+		}
 	default:
 		trange = bson.M{ timecol: bson.M{"$gte": from, "$lte": to}}
 	}
